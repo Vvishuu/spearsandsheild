@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	<title>Spears And Sheilds</title>
+
+</head>
+   <script src = "/socket.io/socket.io.js"></script>
+
+   <script>
+   	 var socket=io();
+
+       var player = {
+                        id : "",
+                        room_id : "",
+                         health : 100,
+                         mode   : 0,
+                     };
+      var opphealth=100;
+      var count=2;
+      var count1='';
+      var abc = '';
+      var waitabc='';
+      var coolabc = '';
+
+      function displayscore(){
+         document.getElementById('enemyhealth').innerHTML = '<div class="progress" style="width: 90%;float: right;">\
+            <div class="progress-bar" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width:'+opphealth+'%;">opp '+opphealth+'\
+            </div>\
+         </div>';
+         document.getElementById('myhealth').innerHTML = '<div class="progress" style="width: 90%;">\
+            <div class="progress-bar" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width:'+player.health+'%;">you '+player.health+'\
+            </div>\
+         </div>';
+      }
+
+      function alert(value){
+         socket.emit('alert',{value:value,obj:player});
+      }
+      socket.on('alertback',function(data){
+         if (data.value==1) {
+            document.getElementById('spearalert').innerHTML = '<img src="spear.png" alt="spear" health="70px" width="70px">';
+         }
+         else{
+          document.getElementById('sheildalert').innerHTML = '<img src="sheild.png" alt="sheild" health="70px" width="70px">';
+         }
+      });
+
+      function lightoff(){
+         socket.emit('lightoff',{obj:player});
+      }
+      socket.on('lightoffback',function(data){
+         document.getElementById('spearalert').innerHTML = '';
+         document.getElementById('sheildalert').innerHTML = '';
+      });
+
+      function resetsheild(){
+         if (count==0) {
+            lightoff();
+            player.mode=-2;
+            clearInterval(abc);
+            count = 2;
+            coolabc=setInterval(cooldown,100);
+         }
+         count--;
+       }
+
+       function cooldown(){
+         if (count==0) {
+            player.mode = 0;
+            clearInterval(coolabc);
+         }
+         count--;
+       }
+
+      function waitforspear(){
+         if (count1==0) {
+            socket.emit('spear',{obj:player});
+            lightoff();
+            clearInterval(waitabc);
+            count=2;
+            coolabc=setInterval(cooldown,100);
+         }
+         count1--;
+      }
+      function waitforsheild(){
+         if (count1==0) {
+            alert(0);
+            player.mode=-1;
+            clearInterval(waitabc);
+            count=3;
+            abc=setInterval(resetsheild,100);
+         }
+         count1--;
+      }
+
+      function leaveroom(){
+         socket.emit('leftroom',{obj:player});
+      }
+      socket.on('leftroomback',function(data){
+         winner(1);
+      });
+
+      function winner(value){
+         if (value==1) {
+            document.body.innerHTML = '<div class="jumbotron">\
+            <center>\
+            <div><h1>You Won</h1></div>\
+            <button onclick="document.location.reload(true)" class="btn btn-lg btn-active">Fight Again</button></center></div>';
+         }
+         else{
+            document.body.innerHTML = '<div class="jumbotron">\
+            <center>\
+            <div><h1>You Loose</h1></div>\
+            <button onclick="document.location.reload(true)" class="btn btn-lg btn-active">Fight Again</button></center></div>';
+         }
+      }
+
+   	 socket.on('connectToRoom',function(data){
+         if(player.id==''){
+            player.id=data.id;
+            player.room_id=data.roomid;
+         }
+         if (data.users==1) {
+            document.getElementById('error-container').innerHTML = 'waiting for player';
+         }
+         else if (data.users==2) {
+          document.getElementById('error-container').innerHTML = '';
+          document.getElementById('onbattle').style.display='block';
+          displayscore();  
+         }
+   	 });
+
+   	 socket.on('attack',function(data){
+   	 	if(player.mode!=-1){
+   	 	player.health=player.health-data.value;
+   	 	displayscore();
+         socket.emit('result',{obj:player});
+   	 	}
+         if (player.health==0) {
+            winner(0);
+      }
+   	 });
+
+       socket.on('recieved',function(data){
+         opphealth=opphealth-data.value;
+         displayscore();
+         if (opphealth==0) {
+            winner(1);
+      }
+       });
+
+       function usespear(){
+         if (player.mode==0) {
+            player.mode=1;
+            alert(1);
+            count1=3;
+            waitabc=setInterval(waitforspear,100);
+            }
+       }
+
+   	 function usesheild(){
+   	 		if(player.mode==0){
+               count1=1;
+               waitabc=setInterval(waitforsheild,100);
+   	 		}
+   	 }
+	   
+	function sendmsg(){
+         var text=document.getElementById('playermsg').value;
+         document.getElementById('playermsg').value = '';
+         socket.emit('send-msg',{msg:text,obj:player});
+       }
+
+       socket.on('msg-rcv',function(data){
+         document.getElementById('msg-box').innerHTML = '<div id="showmsg" style="position: fixed;background-color: #fff;padding: 20px;border-radius: 9px;">'+data.msg+'\
+            </div>'
+         setTimeout(clearmsg,1500);
+       });
+
+       function clearmsg(){
+         document.getElementById('msg-box').innerHTML = '';
+       }
+   </script>
+<body onunload="leaveroom()" style="background-image: url('mygif1.gif');background-size: cover;">
+      <div id="error-container" style="background-color: white"></div>
+   	
+      <div id="onbattle" style="display: none;height: 700px;" class="container-fluid">	
+
+         <div class="row">
+            <div class="col-lg-10 col-lg-offset-2"><div id="enemyhealth"></div></div>
+            <div class="col-lg-10"><div id="myhealth"></div></div>
+         </div>
+
+	 <div id="msg-box" style="height: 100px">
+         </div>
+	      
+         <div class="row">
+            <div id="spearalert" class="col-sm-2 col-sm-offset-3" style="display: inline;"></div><div id="sheildalert" class="col-sm-2 col-sm-offset-2" style="display: inline;"></div>
+         </div>
+
+   	<div id="actbtn" style="position: fixed;bottom: 49px;width:100%;background-color: #000;padding-bottom: 2px" class="row">
+   			<div class="col-sm-3 col-sm-offset-3" style="display: inline;"><button class="btn btn-lg btn-danger" id="spear" onclick="usespear()" style="width: 40%">Spear</button></div>
+   			<div class="col-sm-3 col-sm-offset-1" style="display: inline;"><button class="btn btn-lg btn-success" id="sheild" onclick="usesheild()" style="width: 40%">Sheild</button></div>
+   		</div>
+         <div style="position: fixed;bottom: 0;width: 100%;background-color: #000;padding-top: 10px;padding-bottom: 5px" class="row">
+            <input type="text" name="msg" id="playermsg" class="col-sm-6 col-sm-offset-2" style="padding: 7px;border-radius: 3px" placeholder="message..."><button onclick="sendmsg()" class="col-sm-offset-1 col-sm-2 btn btn-md btn-success show-popover" style="margin-left: 20px"> >> </button>
+         </div>
+
+         <div class="row"></div>
+   	</div>
+
+   </body>
+</html>
